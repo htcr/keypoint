@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 
+eps = 0.00001
+
 def createGaussianPyramid(im, sigma0=1, 
         k=np.sqrt(2), levels=[-1,0,1,2,3,4]):
     if len(im.shape)==3:
@@ -33,9 +35,6 @@ def createDoGPyramid(gaussian_pyramid, levels=[-1,0,1,2,3,4]):
     DoG Pyramid - size (imH, imW, len(levels) - 1) matrix of the DoG pyramid
                    created by differencing the Gaussian Pyramid input
     '''
-    ################
-    # TO DO ...
-    # compute DoG_pyramid here
     DoG_pyramid = gaussian_pyramid[:, :, 1:] - gaussian_pyramid[:, :, 0:-1]
     DoG_levels = levels[1:]
     return DoG_pyramid, DoG_levels
@@ -54,11 +53,24 @@ def computePrincipalCurvature(DoG_pyramid):
                           point contains the curvature ratio R for the 
                           corresponding point in the DoG pyramid
     '''
-    principal_curvature = None
-    ##################
-    # TO DO ...
-    # Compute principal curvature here
-    return principal_curvature
+    H, W, C = DoG_pyramid.shape
+    gradients = np.zeros((H, W, 4*C), dtype=np.float32)
+    for c in range(C):
+        gx = cv2.Sobel(DoG_pyramid[:, :, c], cv2.CV_32F, 1, 0)
+        gy = cv2.Sobel(DoG_pyramid[:, :, c], cv2.CV_32F, 0, 1)
+        # Dxx, Dxy, Dyx, Dyy
+        gradients[:, :, 4*c  ] = cv2.Sobel(gx, cv2.CV_32F, 1, 0)
+        gradients[:, :, 4*c+1] = cv2.Sobel(gx, cv2.CV_32F, 0, 1)
+        gradients[:, :, 4*c+2] = cv2.Sobel(gy, cv2.CV_32F, 1, 0)
+        gradients[:, :, 4*c+3] = cv2.Sobel(gy, cv2.CV_32F, 0, 1)
+        
+    principal_curvature = np.zeros((H, W, C), dtype=np.float32)
+    for c in range(C):
+        principal_curvature[:, :, c] = \
+            (gradients[:, :, 4*c] + gradients[:, :, 4*c+3])**2 / \
+            (gradients[:, :, 4*c]*gradients[:, :, 4*c+3] - gradients[:, :, 4*c+1]*gradients[:, :, 4*c+2] + eps)
+    
+    return np.clip(principal_curvature, -100, 100)
 
 def getLocalExtrema(DoG_pyramid, DoG_levels, principal_curvature,
         th_contrast=0.03, th_r=12):
@@ -135,7 +147,7 @@ if __name__ == '__main__':
     displayPyramid(DoG_pyr)
     # test compute principal curvature
     pc_curvature = computePrincipalCurvature(DoG_pyr)
-    # displayPyramid(pc_curvature)
+    displayPyramid(pc_curvature)
     # test get local extrema
     th_contrast = 0.03
     th_r = 12
