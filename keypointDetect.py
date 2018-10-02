@@ -109,7 +109,7 @@ def get_local_extrema_flag(DoGPyramid):
     spatial_padded = np.pad(tensor, ((0, 0), (1, 1), (1, 1)), mode='constant')
     ic, ih, iw = get_index(C, H, W, 3, 3, 1, 1, 1, 1)
     # CHW->C*(Oh*Ow)*(Kh*Kw)
-    spatial_sampled = tensor[ic, ih, iw].reshape(C, H*W, 9)
+    spatial_sampled = spatial_padded[ic, ih, iw].reshape(C, H*W, 9)
     spacial_argmaxs = np.argmax(spatial_sampled, axis=2).reshape(C, H, W)
     spacial_argmins = np.argmin(spatial_sampled, axis=2).reshape(C, H, W)
 
@@ -121,14 +121,14 @@ def get_local_extrema_flag(DoGPyramid):
     tensor_t = np.transpose(tensor, (2, 1, 0))
     scale_padded = np.pad(tensor_t, ((0, 0), (0, 0), (1, 1)), mode='constant')
     iw, ih, ic = get_index(W, H, C, 1, 3, 1, 1, 0, 1)
-    scale_sampled = tensor_t[iw, ih, ic].reshape(W, H*C, 3)
+    scale_sampled = scale_padded[iw, ih, ic].reshape(W, H*C, 3)
     scale_argmaxs = np.argmax(scale_sampled, axis=2).reshape(W, H, C).transpose((2, 1, 0))
     scale_argmins = np.argmin(scale_sampled, axis=2).reshape(W, H, C).transpose((2, 1, 0))
 
     is_extrema = ((spacial_argmaxs==4)*(scale_argmaxs==1)) + \
         ((spacial_argmins==4)*(scale_argmins==1))
 
-    return is_extrema
+    return is_extrema.transpose((1, 2, 0))
 
 def getLocalExtrema(DoG_pyramid, DoG_levels, principal_curvature,
         th_contrast=0.03, th_r=12):
@@ -196,6 +196,14 @@ def DoGdetector(im, sigma0=1, k=np.sqrt(2), levels=[-1,0,1,2,3,4],
     return locsDoG, gauss_pyramid
 
 
+def draw_keypoints(im, locsDoG):
+    # im should be 3-channel 0-255 image
+    for loc in locsDoG:
+        x, y, c = loc
+        cv2.circle(im, (x, y), 1, (0, 255, 0), 1)
+    cv2.imwrite('keypoints.jpg', im)
+
+
 if __name__ == '__main__':
     # test gaussian pyramid
     levels = [-1,0,1,2,3,4]
@@ -214,5 +222,6 @@ if __name__ == '__main__':
     locsDoG = getLocalExtrema(DoG_pyr, DoG_levels, pc_curvature, th_contrast, th_r)
     # test DoG detector
     locsDoG, gaussian_pyramid = DoGdetector(im)
+    draw_keypoints(im, locsDoG)
 
 
