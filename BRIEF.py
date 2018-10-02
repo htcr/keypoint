@@ -110,7 +110,9 @@ def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
         indices[:, 2]
     # sample patchs
     # m*patch_width**2
-    p_val = gaussian_pyramid[p_ih, p_iw, p_ic].reshape(m , -1)
+    pad = patch_center_x
+    gaussian_pyramid_padded = np.pad(gaussian_pyramid, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
+    p_val = gaussian_pyramid[p_ih+pad, p_iw+pad, p_ic].reshape(m , -1)
 
     # now that we got pixels inside patches, we sample these pixels 
     # with compareX and compareY
