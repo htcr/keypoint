@@ -73,7 +73,7 @@ else:
     np.save(test_pattern_file, [compareX, compareY])
 
 def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
-    compareX, compareY):
+    compareX, compareY, patch_width=9):
     '''
     Compute Brief feature
      INPUT
@@ -92,9 +92,34 @@ def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
      desc - an m x n bits matrix of stacked BRIEF descriptors. m is the number
             of valid descriptors in the image and will vary.
     '''
-    ##############################
-    # TO DO ...
-    # compute locs, desc here
+    m = locs.shape[0]
+    # get patch position offset w.r.t DoG locs
+    p_x, p_y = np.meshgrid(np.arange(patch_width), np.arange(patch_width))
+    p_x, p_y = p_x.reshape(-1), p_y.reshape(-1)
+    
+    #X_x, X_y = compareX % patch_width, compareX / patch_width
+    #Y_x, Y_y = compareY % patch_width, compareX / patch_width
+    patch_center_x, patch_center_y = patch_width // 2, patch_width // 2
+    offset_p_x, offset_p_y = \
+        p_x - patch_center_x, p_y - patch_center_y
+    # get patch sample indices (m*patch_width**2) on gaussian pyramid
+    indices = np.repeat(locs, patch_width**2, axis=0)
+    p_iw, p_ih, p_ic = \
+        indices[:, 0] + np.tile(offset_p_x, m), \
+        indices[:, 1] + np.tile(offset_p_y, m), \
+        indices[:, 2]
+    # sample patchs
+    # m*patch_width**2
+    p_val = gaussian_pyramid[p_ih, p_iw, p_ic].reshape(m , -1)
+
+    # now that we got pixels inside patches, we sample these pixels 
+    # with compareX and compareY
+    # m*patch_width**2 --> m*nbits
+    X_val = p_val[:, compareX]
+    Y_val = p_val[:, compareY]
+    
+    desc = X_val < Y_val
+
     return locs, desc
 
 
@@ -172,8 +197,9 @@ def draw_pattern(patch_width, compareX, compareY):
 if __name__ == '__main__':
     # test makeTestPattern
     # compareX, compareY = makeTestPattern()
-    compareX, compareY = makeTestPattern(100, 256)
-    draw_pattern(100, compareX, compareY)
+    psize, nbits = 9, 256
+    compareX, compareY = makeTestPattern(psize, nbits)
+    draw_pattern(psize, compareX, compareY)
     
     # test briefLite
     im = cv2.imread('../data/model_chickenbroth.jpg')
