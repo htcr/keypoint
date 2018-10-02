@@ -158,6 +158,8 @@ def briefLite(im):
             m is the number of valid descriptors in the image and will vary
             n is the number of bits for the BRIEF descriptor
     '''
+    if len(im.shape)==3:
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     locs, gaussian_pyramid = DoGdetector(im)
     # we use sample pattern saved as global
     locs, desc = computeBrief(im, gaussian_pyramid, locs, None, None, compareX, compareY)
@@ -191,8 +193,8 @@ def plotMatches(im1, im2, matches, locs1, locs2):
     # draw two images side by side
     imH = max(im1.shape[0], im2.shape[0])
     im = np.zeros((imH, im1.shape[1]+im2.shape[1]), dtype='uint8')
-    im[0:im1.shape[0], 0:im1.shape[1]] = im1 #cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
-    im[0:im2.shape[0], im1.shape[1]:] = im2 #cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
+    im[0:im1.shape[0], 0:im1.shape[1]] = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
+    im[0:im2.shape[0], im1.shape[1]:] = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
     plt.imshow(im, cmap='gray')
     for i in range(matches.shape[0]):
         pt1 = locs1[matches[i,0], 0:2]
@@ -234,17 +236,16 @@ if __name__ == '__main__':
     
     # test briefLite
     im = cv2.imread('../data/model_chickenbroth.jpg')
-    im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     locs, desc = briefLite(im)  
     fig = plt.figure()
-    plt.imshow(im, cmap='gray')
+    plt.imshow(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY), cmap='gray')
     plt.plot(locs[:,0], locs[:,1], 'r.')
     plt.draw()
     plt.waitforbuttonpress(0)
     plt.close(fig)
     # test matches
-    im1 = cv2.imread('../data/model_chickenbroth.jpg', 0)
-    im2 = cv2.imread('../data/chickenbroth_01.jpg', 0)
+    im1 = cv2.imread('../data/model_chickenbroth.jpg')
+    im2 = cv2.imread('../data/chickenbroth_01.jpg')
     # im2 = cv2.imread('../data/model_chickenbroth.jpg')
     locs1, desc1 = briefLite(im1)
     locs2, desc2 = briefLite(im2)
