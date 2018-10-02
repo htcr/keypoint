@@ -21,6 +21,7 @@ def makeTestPattern(patch_width=9, nbits=256):
     compareX and compareY - LINEAR indices into the patch_width x patch_width image 
                             patch and are each (nbits,) vectors. 
     '''
+    '''
     # we are sampling from a coarse polar grid, 
     # where we sample 8x more on angle than on radius
     # we sample more than nbits.
@@ -57,9 +58,24 @@ def makeTestPattern(patch_width=9, nbits=256):
     compareY = np.random.choice(compareY, nbits, replace=False)
     compareX = np.zeros((nbits,), dtype=np.int64)
     compareX.fill(center_x * patch_width + center_x)
+    '''
+    Xxs = np.random.normal(patch_width / 2.0, patch_width / 5.0, nbits)
+    Xys = np.random.normal(patch_width / 2.0, patch_width / 5.0, nbits)
+    Xxs = np.int64(np.clip(np.round(Xxs), 0, patch_width-1))
+    Xys = np.int64(np.clip(np.round(Xys), 0, patch_width-1))
+
+    Yxs = np.random.normal(patch_width / 2.0, patch_width / 5.0, nbits)
+    Yys = np.random.normal(patch_width / 2.0, patch_width / 5.0, nbits)
+    Yxs = np.int64(np.clip(np.round(Yxs), 0, patch_width-1))
+    Yys = np.int64(np.clip(np.round(Yys), 0, patch_width-1))
+    
+    compareX = Xys * patch_width + Xxs
+    compareY = Yys * patch_width + Yxs
 
     return compareX, compareY
 
+brief_nbits = 256
+brief_patch_width = 9
 # load test pattern for Brief
 test_pattern_file = '../results/testPattern.npy'
 if os.path.isfile(test_pattern_file):
@@ -67,13 +83,13 @@ if os.path.isfile(test_pattern_file):
     compareX, compareY = np.load(test_pattern_file)
 else:
     # produce and save patterns if not exist
-    compareX, compareY = makeTestPattern()
+    compareX, compareY = makeTestPattern(brief_patch_width, brief_nbits)
     if not os.path.isdir('../results'):
         os.mkdir('../results')
     np.save(test_pattern_file, [compareX, compareY])
 
 def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
-    compareX, compareY, patch_width=9):
+    compareX, compareY, patch_width=brief_patch_width):
     '''
     Compute Brief feature
      INPUT
@@ -92,6 +108,7 @@ def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
      desc - an m x n bits matrix of stacked BRIEF descriptors. m is the number
             of valid descriptors in the image and will vary.
     '''
+    locs = locsDoG
     m = locs.shape[0]
     # get patch position offset w.r.t DoG locs
     p_x, p_y = np.meshgrid(np.arange(patch_width), np.arange(patch_width))
@@ -111,8 +128,12 @@ def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
     # sample patchs
     # m*patch_width**2
     pad = patch_center_x
-    gaussian_pyramid_padded = np.pad(gaussian_pyramid, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
-    p_val = gaussian_pyramid[p_ih+pad, p_iw+pad, p_ic].reshape(m , -1)
+    
+    # gaussian_pyramid_padded = np.pad(gaussian_pyramid, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
+    # p_val = gaussian_pyramid_padded[p_ih+pad, p_iw+pad, p_ic].reshape(m , -1)
+    # im_padded = np.pad(cv2.GaussianBlur(im, (3, 3), 0), ((pad, pad), (pad, pad)), mode='constant')
+    im_padded = np.pad(im, ((pad, pad), (pad, pad)), mode='constant')
+    p_val = im_padded[p_ih+pad, p_iw+pad].reshape(m, -1)
 
     # now that we got pixels inside patches, we sample these pixels 
     # with compareX and compareY
@@ -123,7 +144,6 @@ def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
     desc = X_val < Y_val
 
     return locs, desc
-
 
 
 def briefLite(im):
@@ -138,8 +158,9 @@ def briefLite(im):
             m is the number of valid descriptors in the image and will vary
             n is the number of bits for the BRIEF descriptor
     '''
-    ###################
-    # TO DO ...
+    locs, gaussian_pyramid = DoGdetector(im)
+    # we use sample pattern saved as global
+    locs, desc = computeBrief(im, gaussian_pyramid, locs, None, None, compareX, compareY)
     return locs, desc
 
 def briefMatch(desc1, desc2, ratio=0.8):
@@ -170,8 +191,8 @@ def plotMatches(im1, im2, matches, locs1, locs2):
     # draw two images side by side
     imH = max(im1.shape[0], im2.shape[0])
     im = np.zeros((imH, im1.shape[1]+im2.shape[1]), dtype='uint8')
-    im[0:im1.shape[0], 0:im1.shape[1]] = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
-    im[0:im2.shape[0], im1.shape[1]:] = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
+    im[0:im1.shape[0], 0:im1.shape[1]] = im1 #cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
+    im[0:im2.shape[0], im1.shape[1]:] = im2 #cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
     plt.imshow(im, cmap='gray')
     for i in range(matches.shape[0]):
         pt1 = locs1[matches[i,0], 0:2]
@@ -180,6 +201,14 @@ def plotMatches(im1, im2, matches, locs1, locs2):
         x = np.asarray([pt1[0], pt2[0]])
         y = np.asarray([pt1[1], pt2[1]])
         plt.plot(x,y,'r')
+        #plt.plot(x,y,'g.')
+    for i in range(matches.shape[0]):
+        pt1 = locs1[matches[i,0], 0:2]
+        pt2 = locs2[matches[i,1], 0:2].copy()
+        pt2[0] += im1.shape[1]
+        x = np.asarray([pt1[0], pt2[0]])
+        y = np.asarray([pt1[1], pt2[1]])
+        #plt.plot(x,y,'r')
         plt.plot(x,y,'g.')
     plt.show()
     
@@ -191,7 +220,7 @@ def draw_pattern(patch_width, compareX, compareY):
         y = compareY[i]
         xx, xy = x % patch_width, x // patch_width
         yx, yy = y % patch_width, y // patch_width
-        # cv2.line(p, (xx, xy), (yx, yy), (255, 255, 255))
+        cv2.line(p, (xx, xy), (yx, yy), (255, 255, 255))
         p[yy, yx, :] = 255
     cv2.imwrite('test_pattern.png', p)
 
@@ -199,22 +228,24 @@ def draw_pattern(patch_width, compareX, compareY):
 if __name__ == '__main__':
     # test makeTestPattern
     # compareX, compareY = makeTestPattern()
-    psize, nbits = 9, 256
-    compareX, compareY = makeTestPattern(psize, nbits)
-    draw_pattern(psize, compareX, compareY)
+    # psize, nbits = 100, 256
+    # compareX, compareY = makeTestPattern(psize, nbits)
+    # draw_pattern(psize, compareX, compareY)
     
     # test briefLite
     im = cv2.imread('../data/model_chickenbroth.jpg')
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     locs, desc = briefLite(im)  
     fig = plt.figure()
-    plt.imshow(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY), cmap='gray')
+    plt.imshow(im, cmap='gray')
     plt.plot(locs[:,0], locs[:,1], 'r.')
     plt.draw()
     plt.waitforbuttonpress(0)
     plt.close(fig)
     # test matches
-    im1 = cv2.imread('../data/model_chickenbroth.jpg')
-    im2 = cv2.imread('../data/chickenbroth_01.jpg')
+    im1 = cv2.imread('../data/model_chickenbroth.jpg', 0)
+    im2 = cv2.imread('../data/chickenbroth_01.jpg', 0)
+    # im2 = cv2.imread('../data/model_chickenbroth.jpg')
     locs1, desc1 = briefLite(im1)
     locs2, desc2 = briefLite(im2)
     matches = briefMatch(desc1, desc2)
