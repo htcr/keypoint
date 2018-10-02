@@ -21,44 +21,6 @@ def makeTestPattern(patch_width=9, nbits=256):
     compareX and compareY - LINEAR indices into the patch_width x patch_width image 
                             patch and are each (nbits,) vectors. 
     '''
-    '''
-    # we are sampling from a coarse polar grid, 
-    # where we sample 8x more on angle than on radius
-    # we sample more than nbits.
-    # do numerical tricks to gain better distribution
-    tn = np.sqrt(8.0*nbits)
-    tr = tn - np.floor(tn)
-    rn = np.sqrt(nbits/8.0)
-    rr = rn - np.floor(rn)
-
-    theta_sample_n = int(tn) + int(np.ceil((tn*rr+rn*tr+tr*rr)/rn)) + 1
-    r_sample_n = int(rn)
-
-    # x, y of center
-    center_x = int(np.clip(patch_width / 2.0, 0, patch_width-1))
-    
-    # sample in polar space
-    max_r = patch_width / 2.0
-    max_theta = 2*np.pi
-    step_r = max_r / r_sample_n
-    step_theta = max_theta / theta_sample_n
-
-    # we don't want the first circle of points to collapse on origin
-    rs = np.arange(0, max_r, step_r) + step_r
-    thetas = np.arange(0, max_theta, step_theta)
-
-    polar_coords = np.stack(np.meshgrid(rs, thetas), axis=2).reshape(-1, 2)
-    xs = polar_coords[:, 0]*np.cos(polar_coords[:, 1]) + center_x
-    ys = polar_coords[:, 0]*np.sin(polar_coords[:, 1]) + center_x
-
-    xs = np.clip(xs, 0, patch_width-1).astype(np.int64)
-    ys = np.clip(ys, 0, patch_width-1).astype(np.int64)
-
-    compareY = ys * patch_width + xs
-    compareY = np.random.choice(compareY, nbits, replace=False)
-    compareX = np.zeros((nbits,), dtype=np.int64)
-    compareX.fill(center_x * patch_width + center_x)
-    '''
     Xxs = np.random.normal(patch_width / 2.0, patch_width / 5.0, nbits)
     Xys = np.random.normal(patch_width / 2.0, patch_width / 5.0, nbits)
     Xxs = np.int64(np.clip(np.round(Xxs), 0, patch_width-1))
@@ -129,9 +91,6 @@ def computeBrief(im, gaussian_pyramid, locsDoG, k, levels,
     # m*patch_width**2
     pad = patch_center_x
     
-    # gaussian_pyramid_padded = np.pad(gaussian_pyramid, ((pad, pad), (pad, pad), (0, 0)), mode='constant')
-    # p_val = gaussian_pyramid_padded[p_ih+pad, p_iw+pad, p_ic].reshape(m , -1)
-    # im_padded = np.pad(cv2.GaussianBlur(im, (3, 3), 0), ((pad, pad), (pad, pad)), mode='constant')
     im_padded = np.pad(im, ((pad, pad), (pad, pad)), mode='constant')
     p_val = im_padded[p_ih+pad, p_iw+pad].reshape(m, -1)
 
@@ -246,7 +205,6 @@ if __name__ == '__main__':
     # test matches
     im1 = cv2.imread('../data/model_chickenbroth.jpg')
     im2 = cv2.imread('../data/chickenbroth_01.jpg')
-    # im2 = cv2.imread('../data/model_chickenbroth.jpg')
     locs1, desc1 = briefLite(im1)
     locs2, desc2 = briefLite(im2)
     matches = briefMatch(desc1, desc2)
