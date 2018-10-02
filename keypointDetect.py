@@ -189,12 +189,11 @@ def DoGdetector(im, sigma0=1, k=np.sqrt(2), levels=[-1,0,1,2,3,4],
     ##########################
     # TO DO ....
     # compupte gauss_pyramid, gauss_pyramid here
+    gauss_pyramid = createGaussianPyramid(im, sigma0, k, levels)
+    DoG_pyramid, DoG_levels = createDoGPyramid(gauss_pyramid, levels)
+    principal_curvature = computePrincipalCurvature(DoG_pyramid)
+    locsDoG = getLocalExtrema(DoG_pyramid, DoG_levels, principal_curvature, th_contrast, th_r)
     return locsDoG, gauss_pyramid
-
-
-
-
-
 
 
 if __name__ == '__main__':
