@@ -186,9 +186,6 @@ def DoGdetector(im, sigma0=1, k=np.sqrt(2), levels=[-1,0,1,2,3,4],
 
     gauss_pyramid   A matrix of grayscale images of size (imH,imW,len(levels))
     '''
-    ##########################
-    # TO DO ....
-    # compupte gauss_pyramid, gauss_pyramid here
     gauss_pyramid = createGaussianPyramid(im, sigma0, k, levels)
     DoG_pyramid, DoG_levels = createDoGPyramid(gauss_pyramid, levels)
     principal_curvature = computePrincipalCurvature(DoG_pyramid)
