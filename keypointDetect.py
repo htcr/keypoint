@@ -72,6 +72,64 @@ def computePrincipalCurvature(DoG_pyramid):
     
     return np.clip(principal_curvature, -100, 100)
 
+def get_index(C, Ih, Iw, Kh, Kw, Sh, Sw, Ph, Pw):
+    # get C, H, W indices required to sample
+    # an array of (C, Ih, Iw) into (C, Oh*Ow, Kh*Kw)
+    Oh = int((Ih + 2*Ph - Kh) / Sh + 1)
+    Ow = int((Iw + 2*Pw - Kw) / Sw + 1)
+    # Sample along H
+    ih = np.repeat(np.arange(Kh), Kw)
+    ih = np.tile(ih, Ow)
+    ih_step = np.arange(Oh) * Sh
+    ih = ih.reshape(1, -1) + ih_step.reshape(-1, 1)
+    ih = ih.reshape(-1)
+    ih = np.tile(ih, C)
+    # Sample along W
+    iw = np.tile(np.arange(Kw), Kh)
+    iw_step = np.arange(Ow) * Sw
+    iw = iw.reshape(1, -1) + iw_step.reshape(-1, 1)
+    iw = iw.reshape(-1)
+    iw = np.tile(iw, Oh*C)
+    # Sample along C
+    ic = np.repeat(np.arange(C), Oh*Ow*Kh*Kw)
+    return ic, ih, iw
+
+
+def get_local_extrema_flag(DoGPyramid):
+    # input: (H, W, C)
+    # output: (H, W, C), bool, Ture if is extrema
+    
+    # first, decide if spacial extrema
+    # rearrange to get argmax/argmin, if argmax/min == 4 then it is
+    # because indices for 3x3 neighborhood are: [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    
+    # HWC->CHW
+    tensor = np.transpose(DoGPyramid, (2, 0, 1))
+    C, H, W = tensor.shape
+    spatial_padded = np.pad(tensor, ((0, 0), (1, 1), (1, 1)), mode='constant')
+    ic, ih, iw = get_index(C, H, W, 3, 3, 1, 1, 1, 1)
+    # CHW->C*(Oh*Ow)*(Kh*Kw)
+    spatial_sampled = tensor[ic, ih, iw].reshape(C, H*W, 9)
+    spacial_argmaxs = np.argmax(spatial_sampled, axis=2).reshape(C, H, W)
+    spacial_argmins = np.argmin(spatial_sampled, axis=2).reshape(C, H, W)
+
+    # next, decide if scale-wise extrema
+    # we look the tensor from the 'side', this is equivalent to a 
+    # 1x3 max pooling with stride=1 and w_pad = 1, where the original
+    # channel and width are exchanged.
+    # CHW->WHC
+    tensor_t = np.transpose(tensor, (2, 1, 0))
+    scale_padded = np.pad(tensor_t, ((0, 0), (0, 0), (1, 1)), mode='constant')
+    iw, ih, ic = get_index(W, H, C, 1, 3, 1, 1, 0, 1)
+    scale_sampled = tensor_t[iw, ih, ic].reshape(W, H*C, 3)
+    scale_argmaxs = np.argmax(scale_sampled, axis=2).reshape(W, H, C).transpose((2, 1, 0))
+    scale_argmins = np.argmin(scale_sampled, axis=2).reshape(W, H, C).transpose((2, 1, 0))
+
+    is_extrema = ((spacial_argmaxs==4)*(scale_argmaxs==1)) + \
+        ((spacial_argmins==4)*(scale_argmins==1))
+
+    return is_extrema
+
 def getLocalExtrema(DoG_pyramid, DoG_levels, principal_curvature,
         th_contrast=0.03, th_r=12):
     '''
@@ -91,10 +149,13 @@ def getLocalExtrema(DoG_pyramid, DoG_levels, principal_curvature,
         locsDoG - N x 3 matrix where the DoG pyramid achieves a local extrema in both
                scale and space, and also satisfies the two thresholds.
     '''
-    locsDoG = None
-    ##############
-    #  TO DO ...
-    # Compute locsDoG here
+    is_extrama = get_local_extrema_flag(DoG_pyramid)
+    th_r_satisfy = np.abs(principal_curvature) <= th_r
+    th_contrast_satisfy = np.abs(DoG_pyramid) > th_contrast
+
+    selected = is_extrama * th_r_satisfy * th_contrast_satisfy
+    iy, ix, ic = np.where(selected)
+    locsDoG = np.stack((ix, iy, ic), axis=1)
     return locsDoG
     
 
