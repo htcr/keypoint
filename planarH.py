@@ -13,8 +13,20 @@ def computeH(p1, p2):
     '''
     assert(p1.shape[1]==p2.shape[1])
     assert(p1.shape[0]==2)
-    #############################
-    # TO DO ...
+    N = p1.shape[1]
+    zeros = np.zeros((N, 3), dtype=np.float32)
+    uv_homo = np.concatenate((p2.transpose((1, 0)), np.ones((N, 1), dtype=np.float32)), axis=1)
+    
+    sector1 = np.concatenate((uv_homo, zeros), axis=1).reshape(-1, 3)
+    sector2 = np.concatenate((zeros, uv_homo), axis=1).reshape(-1, 3)
+    
+    xy_factor = p1.transpose((1, 0)).reshape(-1, 1)
+    sector3 = -1.0*uv_homo.repeat(2, axis=0)*xy_factor
+
+    A = np.concatenate((sector1, sector2, sector3), axis=1)
+    U, S, V = np.linalg.svd(A)
+    H2to1 = V[:, 8].reshape(3, 3)
+    
     return H2to1
 
 def ransacH(matches, locs1, locs2, num_iter=5000, tol=2):
