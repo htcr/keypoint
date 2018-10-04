@@ -16,8 +16,13 @@ def imageStitching(im1, im2, H2to1):
     OUTPUT
         Blends img1 and warped img2 and outputs the panorama image
     '''
-    #######################################
-    # TO DO ...
+    H, W = im1.shape[0:2]
+    tH, tW = 2*H, 2*W
+    translate_M = np.array([[1, 0, 0], [0, 1, H/2.0], [0, 0, 1]], dtype=np.float32)
+    pano_im2 = cv2.warpPerspective(im2, translate_M @ H2to1, (tW, tH))
+    pano_im1 = cv2.warpPerspective(im1, translate_M, (tW, tH))
+    pano_im = np.maximum(pano_im1, pano_im2)
+
     return pano_im
 
 
@@ -40,7 +45,7 @@ if __name__ == '__main__':
     matches = briefMatch(desc1, desc2)
     # plotMatches(im1,im2,matches,locs1,locs2)
     H2to1 = ransacH(matches, locs1, locs2, num_iter=5000, tol=2)
-    pano_im = imageStitching_noClip(im1, im2, H2to1)
+    pano_im = imageStitching(im1, im2, H2to1)
     print(H2to1)
     cv2.imwrite('../results/panoImg.png', pano_im)
     cv2.imshow('panoramas', pano_im)
